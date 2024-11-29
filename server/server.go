@@ -93,18 +93,18 @@ func WithNotificationHandler(method string, h handlers.NotificationHandler) Serv
 	}
 }
 
-func (s *MCPServer) Request(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
+func (s *MCPServer) Request(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
 	if strings.HasPrefix(method, "notifications/") {
 		var notification mcp.Notification
 		if err := json.Unmarshal(params, &notification); err != nil {
 			return nil, fmt.Errorf("failed to parse notification: %w", err)
 		}
 		err := s.notifyHandlers[method].Handle(ctx, notification)
-		return struct{}{}, err
+		return nil, err
 	}
 
 	switch method {
-	case "initialize":
+	case mcp.MethodInitialize:
 		var p struct {
 			Capabilities    *mcp.ClientCapabilities `json:"capabilities"`
 			ClientInfo      *mcp.Implementation     `json:"clientInfo"`
@@ -113,57 +113,73 @@ func (s *MCPServer) Request(ctx context.Context, method string, params json.RawM
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.systemHandler.Initialize(ctx, *p.Capabilities, *p.ClientInfo, p.ProtocolVersion)
+		result, err := s.systemHandler.Initialize(ctx, *p.Capabilities, *p.ClientInfo, p.ProtocolVersion)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "ping":
-		return struct{}{}, s.systemHandler.Ping(ctx)
+	case mcp.MethodPing:
+		return nil, s.systemHandler.Ping(ctx)
 
-	case "resources/list":
+	case mcp.MethodResourcesList:
 		var p struct {
 			Cursor *string `json:"cursor,omitempty"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.resourceHandler.List(ctx, p.Cursor)
+		result, err := s.resourceHandler.List(ctx, p.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "resources/read":
+	case mcp.MethodResourcesRead:
 		var p struct {
 			URI string `json:"uri"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.resourceHandler.Read(ctx, p.URI)
+		result, err := s.resourceHandler.Read(ctx, p.URI)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "resources/subscribe":
+	case mcp.MethodResourcesSubscribe:
 		var p struct {
 			URI string `json:"uri"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return struct{}{}, s.resourceHandler.Subscribe(ctx, p.URI)
+		return nil, s.resourceHandler.Subscribe(ctx, p.URI)
 
-	case "resources/unsubscribe":
+	case mcp.MethodResourcesUnsubscribe:
 		var p struct {
 			URI string `json:"uri"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return struct{}{}, s.resourceHandler.Unsubscribe(ctx, p.URI)
+		return nil, s.resourceHandler.Unsubscribe(ctx, p.URI)
 
-	case "prompts/list":
+	case mcp.MethodPromptsList:
 		var p struct {
 			Cursor *string `json:"cursor,omitempty"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.promptHandler.List(ctx, p.Cursor)
+		result, err := s.promptHandler.List(ctx, p.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "prompts/get":
+	case mcp.MethodPromptsGet:
 		var p struct {
 			Name      string            `json:"name"`
 			Arguments map[string]string `json:"arguments,omitempty"`
@@ -171,18 +187,26 @@ func (s *MCPServer) Request(ctx context.Context, method string, params json.RawM
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.promptHandler.Get(ctx, p.Name, p.Arguments)
+		result, err := s.promptHandler.Get(ctx, p.Name, p.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "tools/list":
+	case mcp.MethodToolsList:
 		var p struct {
 			Cursor *string `json:"cursor,omitempty"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.toolHandler.List(ctx, p.Cursor)
+		result, err := s.toolHandler.List(ctx, p.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "tools/call":
+	case mcp.MethodToolsCall:
 		var p struct {
 			Name      string                 `json:"name"`
 			Arguments map[string]interface{} `json:"arguments,omitempty"`
@@ -190,18 +214,22 @@ func (s *MCPServer) Request(ctx context.Context, method string, params json.RawM
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.toolHandler.Call(ctx, p.Name, p.Arguments)
+		result, err := s.toolHandler.Call(ctx, p.Name, p.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
-	case "logging/setLevel":
+	case mcp.MethodLoggingSetLevel:
 		var p struct {
 			Level mcp.LoggingLevel `json:"level"`
 		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return struct{}{}, s.systemHandler.SetLevel(ctx, p.Level)
+		return nil, s.systemHandler.SetLevel(ctx, p.Level)
 
-	case "completion/complete":
+	case mcp.MethodCompletionComplete:
 		var p struct {
 			Ref      interface{}         `json:"ref"`
 			Argument mcp.CompleteRequest `json:"argument"`
@@ -209,7 +237,11 @@ func (s *MCPServer) Request(ctx context.Context, method string, params json.RawM
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("failed to parse parameters: %w", err)
 		}
-		return s.systemHandler.Complete(ctx, p.Ref, p.Argument)
+		result, err := s.systemHandler.Complete(ctx, p.Ref, p.Argument)
+		if err != nil {
+			return nil, err
+		}
+		return result.ToJSON()
 
 	default:
 		return nil, fmt.Errorf("method not found: %s", method)

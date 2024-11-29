@@ -19,6 +19,22 @@ const (
 	ErrorCodeInternalError  = -32603
 )
 
+// Standard MCP methods
+const (
+	MethodInitialize           = "initialize"
+	MethodPing                 = "ping"
+	MethodResourcesList        = "resources/list"
+	MethodResourcesRead        = "resources/read"
+	MethodResourcesSubscribe   = "resources/subscribe"
+	MethodResourcesUnsubscribe = "resources/unsubscribe"
+	MethodPromptsList          = "prompts/list"
+	MethodPromptsGet           = "prompts/get"
+	MethodToolsList            = "tools/list"
+	MethodToolsCall            = "tools/call"
+	MethodLoggingSetLevel      = "logging/setLevel"
+	MethodCompletionComplete   = "completion/complete"
+)
+
 // Base for objects that include optional annotations for the client. The client
 // can use annotations to inform how objects are used or displayed
 type Annotated struct {
@@ -196,6 +212,11 @@ func (j *CallToolResult) UnmarshalJSON(b []byte) error {
 	}
 	*j = CallToolResult(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *CallToolResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 // This notification can be sent by either side to indicate that it is cancelling a
@@ -428,6 +449,11 @@ func (j *CompleteResultCompletion) UnmarshalJSON(b []byte) error {
 	}
 	*j = CompleteResultCompletion(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *CompleteResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 // This result property is reserved by the protocol to allow clients and servers to
@@ -788,6 +814,11 @@ func (j *GetPromptResult) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ToJSON implements json.Marshaler.
+func (j *GetPromptResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
+}
+
 // An image provided to or from an LLM.
 type ImageContent struct {
 	// Annotations corresponds to the JSON schema field "annotations".
@@ -1011,6 +1042,15 @@ func (j *InitializeResult) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ToJSON implements json.Marshaler.
+func (j *InitializeResult) ToJSON() (json.RawMessage, error) {
+	b, err := json.Marshal(j)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(b), nil
+}
+
 // This notification is sent from the client to the server after initialization has
 // finished.
 type InitializedNotification struct {
@@ -1048,76 +1088,6 @@ func (j *InitializedNotification) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*j = InitializedNotification(plain)
-	return nil
-}
-
-// A response to a request that indicates an error occurred.
-type JSONRPCError struct {
-	// Error corresponds to the JSON schema field "error".
-	Error JSONRPCErrorData `json:"error" yaml:"error" mapstructure:"error"`
-
-	// Id corresponds to the JSON schema field "id".
-	Id interface{} `json:"id" yaml:"id" mapstructure:"id"`
-
-	// Jsonrpc corresponds to the JSON schema field "jsonrpc".
-	Jsonrpc string `json:"jsonrpc" yaml:"jsonrpc" mapstructure:"jsonrpc"`
-}
-
-type JSONRPCErrorData struct {
-	// The error type that occurred.
-	Code int `json:"code" yaml:"code" mapstructure:"code"`
-
-	// Additional information about the error. The value of this member is defined by
-	// the sender (e.g. detailed error information, nested errors etc.).
-	Data interface{} `json:"data,omitempty" yaml:"data,omitempty" mapstructure:"data,omitempty"`
-
-	// A short description of the error. The message SHOULD be limited to a concise
-	// single sentence.
-	Message string `json:"message" yaml:"message" mapstructure:"message"`
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *JSONRPCErrorData) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["code"]; raw != nil && !ok {
-		return fmt.Errorf("field code in JSONRPCErrorData: required")
-	}
-	if _, ok := raw["message"]; raw != nil && !ok {
-		return fmt.Errorf("field message in JSONRPCErrorData: required")
-	}
-	type Plain JSONRPCErrorData
-	var plain Plain
-	if err := json.Unmarshal(b, &plain); err != nil {
-		return err
-	}
-	*j = JSONRPCErrorData(plain)
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *JSONRPCError) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["error"]; raw != nil && !ok {
-		return fmt.Errorf("field error in JSONRPCError: required")
-	}
-	if _, ok := raw["id"]; raw != nil && !ok {
-		return fmt.Errorf("field id in JSONRPCError: required")
-	}
-	if _, ok := raw["jsonrpc"]; raw != nil && !ok {
-		return fmt.Errorf("field jsonrpc in JSONRPCError: required")
-	}
-	type Plain JSONRPCError
-	var plain Plain
-	if err := json.Unmarshal(b, &plain); err != nil {
-		return err
-	}
-	*j = JSONRPCError(plain)
 	return nil
 }
 
@@ -1207,6 +1177,19 @@ func (j *JSONRPCRequest) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type JSONRPCErrorData struct {
+	// The error type that occurred.
+	Code int `json:"code" yaml:"code" mapstructure:"code"`
+
+	// Additional information about the error. The value of this member is defined by
+	// the sender (e.g. detailed error information, nested errors etc.).
+	Data interface{} `json:"data,omitempty" yaml:"data,omitempty" mapstructure:"data,omitempty"`
+
+	// A short description of the error. The message SHOULD be limited to a concise
+	// single sentence.
+	Message string `json:"message" yaml:"message" mapstructure:"message"`
+}
+
 // A successful (non-error) response to a request.
 type JSONRPCResponse struct {
 	// Id corresponds to the JSON schema field "id".
@@ -1216,7 +1199,10 @@ type JSONRPCResponse struct {
 	Jsonrpc string `json:"jsonrpc" yaml:"jsonrpc" mapstructure:"jsonrpc"`
 
 	// Result corresponds to the JSON schema field "result".
-	Result interface{} `json:"result" yaml:"result" mapstructure:"result"`
+	Result json.RawMessage `json:"result,omitempty" yaml:"result,omitempty" mapstructure:"result,omitempty"`
+
+	// Error corresponds to the JSON schema field "error".
+	Error *JSONRPCErrorData `json:"error,omitempty" yaml:"error,omitempty" mapstructure:"error,omitempty"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
@@ -1312,6 +1298,11 @@ func (j *ListPromptsResult) UnmarshalJSON(b []byte) error {
 	}
 	*j = ListPromptsResult(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *ListPromptsResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 // Sent from the client to request a list of resource templates the server has.
@@ -1452,6 +1443,11 @@ func (j *ListResourcesResult) UnmarshalJSON(b []byte) error {
 	}
 	*j = ListResourcesResult(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *ListResourcesResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 // Sent from the server to request a list of root URIs from the client. Roots allow
@@ -1608,6 +1604,11 @@ func (j *ListToolsResult) UnmarshalJSON(b []byte) error {
 	}
 	*j = ListToolsResult(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *ListToolsResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 type LoggingLevel string
@@ -2256,6 +2257,11 @@ func (j *ReadResourceResult) UnmarshalJSON(b []byte) error {
 	}
 	*j = ReadResourceResult(plain)
 	return nil
+}
+
+// ToJSON implements json.Marshaler.
+func (j *ReadResourceResult) ToJSON() (json.RawMessage, error) {
+	return json.Marshal(j)
 }
 
 type Request struct {
